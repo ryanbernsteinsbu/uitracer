@@ -1,3 +1,4 @@
+# import cProfile
 from pywinauto import Desktop, Application
 import pygetwindow as gw
 from collections import deque
@@ -10,7 +11,9 @@ from uitree import *
 import threading
 
 running = False
+record = StateTree()
 
+# profiler = cProfile.Profile()
 def switch_wait():
     # hold program till main app is switched
     last_title = gw.getActiveWindow().title
@@ -45,23 +48,27 @@ def print_tree():
     switch_wait()
     while True:
         window, default = get_tree()
-        print("makes it here")
+        # profiler.enable()
         data = window.get_control_tree_json()
+        # profiler.disable()
         print(json.dumps(data, indent=4))
         wait_for_tree_change(window)
 
 def capture_tree():
-    record = StateTree()
+    global running
+    # record = StateTree()
     last_state = None
     last_action = None
     switch_wait()
-    while True:
+    while running:
         window, default = get_tree()
-        state = get_tree_signature(window)
+        
+        data = window.get_control_tree_json()
+        state = get_json_tree_signature(data)
         if state in record.states.keys():
             print("backtrack found")       
-        record.add_state(get_node(window, default))
-
+        record.add_state(get_node(data, default))
+        print("ready")
         # check window sig for backtrack 
         # update last state with action
 
@@ -72,8 +79,12 @@ def create_overlay_window(width=300, height=100, padding=50, title="UI Explorer"
 
     def toggle_capture():
         global running
+        global record
         if running: 
             running = False
+            
+            # profiler.dump_stats("profile.prof")
+            save_state_tree(record, "states.jsonl")
             
             button.config(text="Run")
         else:
@@ -102,7 +113,7 @@ def create_overlay_window(width=300, height=100, padding=50, title="UI Explorer"
     label = tk.Label(root, text="UI Explorer Running")
     label.pack(pady=(10, 5))
 
-    button = tk.Button(root, text="Run", command=print_tree)
+    button = tk.Button(root, text="Run", command=toggle_capture)
     button.pack()
 
     return root

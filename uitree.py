@@ -21,10 +21,35 @@ class Action: # how to get from one state to another
         )
 
     def __hash__(self):
+        return hash((
+            self.action_type,
+            self.content,
+            self.automation_id
+        ))
+
+    def __eq__(self, other):
+        if not isinstance(other, Action):
+            return NotImplemented
+
         return (
-            f"{self.action_type}:"
-            f"{self.content}"
-            f"({self.automation_id})"
+            self.automation_id == other.automation_id
+            and self.content == other.content
+            and self.action_type == other.action_type
+        )
+
+    def to_dict(self):
+        return {
+            "automation_id": self.automation_id,
+            "content": self.content,
+            "action_type": self.action_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            data["automation_id"],
+            data["content"],
+            data["action_type"],
         )
     
 class StateNode:
@@ -38,6 +63,20 @@ class StateNode:
     def add_transition(self, action, child):
         self.transitions[action] = child
 
+    def to_dict(self):
+        return {
+            "state_hash": self.state_hash,
+            "ui_tree": self.ui_tree,
+            "default_action": repr(self.default_action),
+            "transitions": [
+                {
+                    "action": action.to_dict(),
+                    "child": child.state_hash,
+                }
+                for action, child in self.transitions.items()
+            ],
+        }
+    
 class StateTree:
     def __init__(self):
         self.root = None
@@ -50,6 +89,26 @@ class StateTree:
             self.root = state
 
         return state
+
+def save_state_tree(state_tree, filename):
+    with open(filename, "w", encoding="utf-8") as f:
+
+    # First record describes the tree itself
+        f.write(json.dumps({
+            "type": "state_tree",
+            "root": (
+                state_tree.root.state_hash
+                if state_tree.root is not None
+                else None
+            )
+        }) + "\n")
+
+        # One state per line
+        for state in state_tree.states.values():
+            f.write(json.dumps({
+                "type": "state",
+                "data": state.to_dict()
+            }) + "\n")
 
 def get_tree_signature(element):
     parts = []
@@ -78,7 +137,7 @@ def get_json_tree_signature(data):
         parts.append(
             (
                 node["control_type"],
-                node["name"],
+                node["text"],
                 node["automation_id"],
             )
         )
@@ -107,5 +166,71 @@ def get_tree(): #returns a tree and control of the current screen
         print("Error:", e)
 
 def get_node(window, default):
-    new_node = StateNode(get_tree_signature(window), window, default)
+    new_node = StateNode(get_json_tree_signature(window), window, default)
     return new_node
+
+def load_state_tree(filename):
+    state_tree = StateTree()
+
+    records = []
+
+    with open(filename, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            records.append(json.loads(line))
+
+    # First record contains tree metadata
+    tree_record = records[0]
+
+    root_hash = tree_record["root"]
+
+    # First pass: create every StateNode
+    for record in records[1:]:
+        if record["type"] != "state":
+            continue
+
+        data = record["data"]
+
+        default_action = None
+
+        if data["default_action"] is not None:
+            default_action = Action.from_dict(
+                data["default_action"]
+            )
+
+        state = StateNode(
+            state_hash=data["state_hash"],
+            ui_tree=data["ui_tree"],
+            default_action=default_action,
+        )
+
+        state_tree.states[state.state_hash] = state
+
+    # Second pass: reconstruct transitions
+    for record in records[1:]:
+        if record["type"] != "state":
+            continue
+
+        data = record["data"]
+
+        state = state_tree.states[data["state_hash"]]
+
+        for transition in data["transitions"]:
+            action = Action.from_dict(
+                transition["action"]
+            )
+
+            child_hash = transition["child"]
+            child = state_tree.states[child_hash]
+
+            state.add_transition(action, child)
+
+    # Restore root
+    if root_hash is not None:
+        state_tree.root = state_tree.states[root_hash]
+
+    return state_tree

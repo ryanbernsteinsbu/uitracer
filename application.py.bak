@@ -610,12 +610,13 @@ class WindowSpecification(object):
         ]
 
         name_ctrl_id_map = findbestmatch.UniqueDict()
-
+        ctrl_id_map = {}
         for index, ctrl in enumerate(all_ctrls):
             ctrl_names = findbestmatch.get_control_names(
                 ctrl, all_ctrls, txt_ctrls
             )
-
+            ctrl_id_map.update({id(ctrl): index})
+            
             for name in ctrl_names:
                 name_ctrl_id_map[name] = index
 
@@ -629,7 +630,7 @@ class WindowSpecification(object):
                 return None
 
             try:
-                ctrl_id = all_ctrls.index(ctrl)
+                ctrl_id = ctrl_id_map.get(id(ctrl))
             except ValueError:
                 return None
 
