@@ -5,6 +5,7 @@ from dotenv import find_dotenv, load_dotenv
 from langsmith import Client
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
+from langsmith import traceable
 from langsmith import evaluate
 # from langsmith.evaluation import LangChainStringEvaluator
 
@@ -35,3 +36,5 @@ for input_prompt in inputs:
         outputs=None,
         dataset_id=dataset.id,
     )
+
+
