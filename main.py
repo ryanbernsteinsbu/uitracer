@@ -1,4 +1,4 @@
-# import cProfile
+import cProfile
 from pywinauto import Desktop, Application
 import pygetwindow as gw
 from collections import deque
@@ -21,7 +21,7 @@ from langsmith import evaluate
 
 running = False
 
-# profiler = cProfile.Profile()
+profiler = cProfile.Profile()
 def switch_wait():
     # hold program till main app is switched
     last_title = gw.getActiveWindow().title
@@ -108,6 +108,7 @@ def capture_tree(record, llm, client, dataset_id):
     last_action = None
     switch_wait()
     while running:
+        # profiler.enable()
         window, default = get_tree() # possibly improve this function by making it return json
         data = window.get_control_tree_json()
         state = get_json_tree_signature(data)
@@ -118,32 +119,33 @@ def capture_tree(record, llm, client, dataset_id):
 
 
         record.add_state(get_node(data, default))
+        # profiler.disable()
         #ask LLM for next move
-        print("querying for next move")
-        action = choose_next_action(llm, task, data, history=None)
-        history.append(action)
-        print(action)
-        client.create_example(
-            inputs={
-                "task": task,
-                "ui_tree": data,
-            },
-            outputs={
-                "automation_id": action["automation_id"],
-                "control_type": action["control_type"],
-                "action": action["action"],
-                "reason": action["reason"]
-            },
-            dataset_id=dataset_id,
-        )
+        # print("querying for next move")
+        # action = choose_next_action(llm, task, data, history=None)
+        # history.append(action)
+        # print(action)
+        # client.create_example(
+        #     inputs={
+        #         "task": task,
+        #         "ui_tree": data,
+        #     },
+        #     outputs={
+        #         "automation_id": action["automation_id"],
+        #         "control_type": action["control_type"],
+        #         "action": action["action"],
+        #         "reason": action["reason"]
+        #     },
+        #     dataset_id=dataset_id,
+        # )
         
-        print(action)
-        control = window.child_window(
-            auto_id=action["automation_id"],
-            control_type=action["control_type"]
-        )
+        # print(action)
+        # control = window.child_window(
+        #     auto_id=action["automation_id"],
+        #     control_type=action["control_type"]
+        # )
 
-        control.wrapper_object().click_input() 
+        # control.wrapper_object().click_input() 
         # check window sig for backtrack 
         # update last state with action
 
@@ -165,8 +167,8 @@ def create_overlay_window(record, llm, client, dataset_id, width=300, height=100
         else:
             running = True
             threading.Thread(
-                # target=lambda: capture_tree(record, llm, client, dataset_id),
-                target= print_tree,
+                target=lambda: capture_tree(record, llm, client, dataset_id),
+                # target= print_tree,
                 daemon=True
             ).start()
             button.config(text="Stop")
@@ -209,14 +211,14 @@ if __name__ == "__main__":
     llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite")
 
     record = StateTree()
-    dataset_name = "UI tempNavigation Dataset 2"
+    # dataset_name = "UI tempNavigation Dataset 2"
 
-    dataset = client.create_dataset(
-        dataset_name=dataset_name,
-        description="UIs and their navigation",
-    )
+    # dataset = client.create_dataset(
+    #     dataset_name=dataset_name,
+    #     description="UIs and their navigation",
+    # )
 
-    root = create_overlay_window(record, llm, client, dataset.id)
+    root = create_overlay_window(record, llm, client, -1)#dataset.id)
     root.mainloop()
     # time.sleep(0.1)
     # print("Switch to your target app in 3 seconds...")
